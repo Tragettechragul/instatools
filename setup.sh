@@ -4,8 +4,8 @@ set -e
 cd "$(dirname "$0")"
 command -v ffmpeg >/dev/null || { echo "Install ffmpeg first (brew install ffmpeg / sudo apt install ffmpeg)"; exit 1; }
 python3 -m venv .venv
-.venv/bin/pip install -q --upgrade pip
-.venv/bin/pip install -q -e ".[transcribe]"
+.venv/bin/python -m pip install -q --upgrade pip
+.venv/bin/python -m pip install -q -e ".[transcribe]"
 .venv/bin/playwright install chromium
 if [ -z "$ANTHROPIC_API_KEY" ]; then
   read -rp "Anthropic API key (sk-ant-...): " KEY
