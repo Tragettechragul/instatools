@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import captioner, config, poster
+from . import ai, captioner, community, config, editor, notes, poster
 from .browser import session
 from .guards import HardStop, NotLoggedIn
 
@@ -67,11 +67,49 @@ def _archive(item: Item, dest_root: Path, record: dict) -> Path:
 
 
 def process(cfg: config.Config, item: Item) -> dict:
-    text = captioner.build(cfg, item.media, item.note)
+    note = notes.parse(item.note)
+    work = cfg.root / "work" / f"{datetime.now():%Y%m%d-%H%M%S}-{item.source.stem}"
+    work.mkdir(parents=True, exist_ok=True)
+    images = [m for m in item.media if m.suffix.lower() in captioner.IMAGE_EXT]
+    record: dict = {"type": note.type, "community": note.community}
+
+    # 1. What is this photo? (decides the occasion used for community research)
+    first_plan = editor.plan(images[0], note.type, note.brief, note.community) if images and ai.available() else {}
+    occasion = first_plan.get("occasion") or note.brief.split(",")[0] or "memories"
+
     with session(cfg) as page:
-        url = poster.publish(page, item.media, text)
-    return {"status": "published", "url": url, "caption": text.caption, "alt_texts": text.alt_texts,
-            "media": [p.name for p in item.media], "time": datetime.now().isoformat(timespec="seconds")}
+        # 2. How does this community post this kind of moment? (songs, caption style)
+        advice = None
+        if note.community:
+            research = community.research(page, cfg, occasion, note.community, note.type)
+            advice = research.get("advice")
+            record["community_research"] = {"references": len(research["references"]), "advice": advice}
+        # 3. Edit photos (originals untouched)
+        media = []
+        for m in item.media:
+            if m in images and note.edit != "off":
+                refs = json.dumps(advice.get("visual_style", ""), ensure_ascii=False) if advice else ""
+                edited, plan = editor.auto_edit(m, work, note.type, note.brief, note.community, refs)
+                media.append(edited)
+                record.setdefault("edits", {})[m.name] = plan
+            else:
+                media.append(m)
+        # 4. Caption + alt text
+        text = captioner.build(cfg, media, note, advice) if note.type == "post" else captioner.PostText("")
+        # 5. Publish
+        if note.type == "post":
+            url = poster.publish(page, media, text)
+    if note.type == "story":
+        if not images:
+            raise poster.PostFailed("Stories from this tool support photos only.")
+        with session(cfg, mobile=True) as page:
+            for m in (m for m in media if m.suffix.lower() in captioner.IMAGE_EXT):
+                url = poster.publish_story(page, m)
+    record.update({"status": "published", "url": url, "caption": text.caption, "alt_texts": text.alt_texts,
+                   "media": [p.name for p in item.media], "time": datetime.now().isoformat(timespec="seconds")})
+    if advice and advice.get("songs"):
+        record["suggested_songs"] = advice["songs"]  # Instagram web can't attach music; add it in the app
+    return record
 
 
 def run(cfg: config.Config, once: bool = False, poll: int = 30) -> None:

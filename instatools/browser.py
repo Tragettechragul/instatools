@@ -10,13 +10,16 @@ IG = "https://www.instagram.com/"
 
 
 @contextmanager
-def session(cfg: config.Config, headless: bool | None = None):
+def session(cfg: config.Config, headless: bool | None = None, mobile: bool = False):
+    """mobile=True emulates a phone: instagram.com only offers Story upload on mobile web."""
     with sync_playwright() as pw:
+        device = dict(pw.devices["Pixel 7"]) if mobile else {"viewport": {"width": 1280, "height": 900}}
+        device.pop("default_browser_type", None)
         ctx: BrowserContext = pw.chromium.launch_persistent_context(
             str(cfg.profile_dir),
             headless=config.HEADLESS if headless is None else headless,
-            viewport={"width": 1280, "height": 900},
             locale="en-GB",
+            **device,
         )
         try:
             page = ctx.pages[0] if ctx.pages else ctx.new_page()

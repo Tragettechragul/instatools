@@ -120,3 +120,27 @@ def _new_post_url(page: Page, username: str, before: list[str]) -> str:
             return new[0]
         pause(5, 8)
     raise PostFailed("Instagram confirmed the share, but the new post isn't on the profile grid yet.")
+
+
+def publish_story(page: Page, image: Path) -> str:
+    """Story upload via mobile web (page must come from session(mobile=True)). Images only."""
+    username = logged_in_username(page)
+    goto(page, IG)
+    # The file input sits behind the "Your story" / "New story" / camera control
+    for name in ("New story", "Your story", "Add to story", "Camera"):
+        loc = page.locator(f"[aria-label='{name}'], svg[aria-label='{name}']")
+        if loc.count() and loc.first.is_visible():
+            with page.expect_file_chooser(timeout=15000) as fc:
+                loc.first.click()
+            fc.value.set_files(str(image))
+            break
+    else:
+        inp = page.locator("input[type='file'][accept*='image']").first
+        inp.wait_for(state="attached", timeout=15000)
+        inp.set_input_files(str(image))
+    pause(4, 7)
+    check(page)
+    _click(page, "Add to your story", "Share to story", "Your story", timeout=30000)
+    pause(8, 12)
+    check(page)
+    return f"{IG}stories/{username}/"

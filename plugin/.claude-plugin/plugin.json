@@ -1,0 +1,6 @@
+{
+  "name": "instatools",
+  "version": "0.3.0",
+  "description": "Use the instatools CLI from chat: analyse Instagram links, pull posts, edit photos, research communities, post.",
+  "author": { "name": "Tragettechragul" }
+}

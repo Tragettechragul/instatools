@@ -1,0 +1,11 @@
+{
+  "name": "instatools",
+  "owner": { "name": "Tragettechragul" },
+  "plugins": [
+    {
+      "name": "instatools",
+      "source": "./plugin",
+      "description": "Paste an Instagram link in chat: Claude reads the whole post/Reel and finds the tools and GitHub repos. Also posts, edits photos and runs the drop-folder autoposter."
+    }
+  ]
+}

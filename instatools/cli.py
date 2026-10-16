@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
-from . import captioner, config, poster, puller, watcher
+from . import analyzer, captioner, community, config, editor, notes, poster, puller, watcher
 from .browser import interactive_login, logged_in_username, session
 from .guards import HardStop, NotLoggedIn
 
@@ -36,6 +36,18 @@ def main(argv: list[str] | None = None) -> int:
     pl.add_argument("--limit", type=int, default=12)
     pl.add_argument("--transcribe", action="store_true", help="speech-to-text on videos (needs faster-whisper)")
 
+    an = sub.add_parser("analyze", help="give a post/Reel link: reads everything, finds tools + GitHub repos")
+    an.add_argument("url")
+
+    ed = sub.add_parser("edit", help="analyse a photo and save an improved copy (no posting)")
+    ed.add_argument("image", type=Path)
+    ed.add_argument("--story", action="store_true", help="9:16 for Stories (default 4:5 feed)")
+    ed.add_argument("--brief", default="")
+
+    rs = sub.add_parser("research", help="how a community posts a kind of moment: captions, songs, hashtags")
+    rs.add_argument("occasion", help="e.g. wedding, birthday, temple, trip")
+    rs.add_argument("--community", default="", help="e.g. tamil")
+
     r = sub.add_parser("get", help="download one post or Reel by URL")
     r.add_argument("url")
     r.add_argument("--transcribe", action="store_true")
@@ -54,8 +66,8 @@ def main(argv: list[str] | None = None) -> int:
             watcher.run(cfg, once=args.once, poll=args.poll)
         elif args.cmd == "post":
             files = [f.resolve() for f in args.files]
-            note = files[0].with_suffix(".txt")
-            text = captioner.PostText(args.caption) if args.caption else captioner.build(cfg, files, note if note.exists() else None)
+            note = notes.parse(files[0].with_suffix(".txt"))
+            text = captioner.PostText(args.caption) if args.caption else captioner.build(cfg, files, note)
             with session(cfg) as page:
                 print(poster.publish(page, files, text))
         elif args.cmd == "pull":
@@ -63,6 +75,19 @@ def main(argv: list[str] | None = None) -> int:
                 user = args.username or logged_in_username(page)
                 for folder in puller.pull_profile(page, cfg, user, args.limit, args.transcribe):
                     print(folder)
+        elif args.cmd == "analyze":
+            with session(cfg) as page:
+                folder = analyzer.analyze(page, cfg, args.url)
+            print((folder / "analysis.md").read_text(encoding="utf-8"))
+            print(f"\nSaved: {folder}")
+        elif args.cmd == "edit":
+            img = args.image.resolve()
+            out, plan = editor.auto_edit(img, img.parent, "story" if args.story else "post", args.brief)
+            print(json.dumps(plan, indent=2, ensure_ascii=False))
+            print(f"Saved: {out}")
+        elif args.cmd == "research":
+            with session(cfg) as page:
+                print(json.dumps(community.research(page, cfg, args.occasion, args.community), indent=2, ensure_ascii=False))
         elif args.cmd == "get":
             with session(cfg) as page:
                 folder = puller.pull_post(page, cfg, args.url, do_transcribe=args.transcribe)
