@@ -29,13 +29,30 @@ def session(cfg: config.Config, headless: bool | None = None, mobile: bool = Fal
 
 
 def goto(page: Page, url: str) -> None:
-    page.goto(url, wait_until="domcontentloaded")
+    for attempt in range(3):
+        try:
+            page.goto(url, wait_until="domcontentloaded")
+            break
+        except Exception as e:  # Instagram redirects mid-load (e.g. /accounts/onetap/ "save login info")
+            if "interrupted by another navigation" not in str(e) or attempt == 2:
+                raise
+            page.wait_for_load_state("domcontentloaded")
+            pause(1, 2)
+            dismiss_popups(page)
     pause(2, 4)
     dismiss_popups(page)
     check(page)
 
 
 def dismiss_popups(page: Page) -> None:
+    if "/accounts/onetap" in page.url:  # "Save your login info?" — saving keeps the session alive
+        for name in ("Save info", "Save Info", "Not now", "Not Now"):
+            btn = page.get_by_role("button", name=name, exact=True)
+            if btn.count():
+                btn.first.click(timeout=3000)
+                page.wait_for_load_state("domcontentloaded")
+                pause(1, 2)
+                break
     for name in ("Not now", "Not Now", "Decline optional cookies", "Allow all cookies"):
         btn = page.get_by_role("button", name=name, exact=True)
         if btn.count():
