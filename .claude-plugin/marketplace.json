@@ -1,0 +1,11 @@
+{
+  "name": "instatools",
+  "owner": { "name": "Tragettechragul" },
+  "plugins": [
+    {
+      "name": "instatools",
+      "source": "./plugins/instatools",
+      "description": "Run an Instagram account through your own logged-in Chrome: insights, niche research, Reel breakdowns, caption analysis, and approval-gated posting."
+    }
+  ]
+}
