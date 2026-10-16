@@ -56,3 +56,12 @@ def test_markdown_report():
 def test_community_hashtags():
     assert community.hashtags_for("Wedding", "Tamil")[:2] == ["tamilwedding", "tamilmemories"]
     assert community.hashtags_for("trip", "") == ["trip", "tripmemories"]
+
+
+def test_install_plan(tmp_path):
+    from instatools import installer
+    (tmp_path / "requirements.txt").write_text("rich")
+    (tmp_path / "package.json").write_text('{"scripts": {"build": "tsc"}}')
+    steps = installer.plan(tmp_path)
+    assert steps[0][1:] == ["-m", "venv", ".venv"] and steps[1][-2:] == ["-r", "requirements.txt"]
+    assert ["npm", "install"] in steps and ["npm", "run", "build"] in steps

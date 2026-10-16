@@ -20,10 +20,17 @@ Then answer in chat:
 4. Honest verdict: useful, or hype?
 If the user asks for more, read `analysis.json` in the printed folder.
 
+Then ask: "Want me to install any of these?" If the user says yes to a repo, run
+`instatools install <owner/repo> -y`. It clones into `~/instatools-apps/<repo>` and runs the detected install
+steps (virtualenv / npm / go / cargo, no sudo). Report the result and the run command it prints. Before
+installing, flag anything from the README notes it prints (paid API keys, broad permissions). Only install a
+**search match** after telling the user it wasn't named in the post.
+
 ## Other requests
 
 | User wants | Run |
 |---|---|
+| Install a GitHub tool | `instatools install <owner/repo> -y` (only after the user says yes) |
 | Download a profile's posts | `instatools pull <username> --limit N` |
 | One post's media/audio/transcript | `instatools get "<url>" --transcribe` |
 | Improve a photo | `instatools edit <file> [--story] [--brief "..."]` |

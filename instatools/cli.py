@@ -4,7 +4,7 @@ import logging
 import sys
 from pathlib import Path
 
-from . import analyzer, captioner, community, config, editor, notes, poster, puller, watcher
+from . import installer, analyzer, captioner, community, config, editor, notes, poster, puller, watcher
 from .browser import interactive_login, logged_in_username, session
 from .guards import HardStop, NotLoggedIn
 
@@ -35,6 +35,10 @@ def main(argv: list[str] | None = None) -> int:
     pl.add_argument("username", nargs="?", help="profile to pull (default: your own)")
     pl.add_argument("--limit", type=int, default=12)
     pl.add_argument("--transcribe", action="store_true", help="speech-to-text on videos (needs faster-whisper)")
+
+    ins = sub.add_parser("install", help="clone a GitHub tool and run its install steps (asks first)")
+    ins.add_argument("repo", help="owner/repo or GitHub URL")
+    ins.add_argument("-y", "--yes", action="store_true", help="don't ask, just install")
 
     an = sub.add_parser("analyze", help="give a post/Reel link: reads everything, finds tools + GitHub repos")
     an.add_argument("url")
@@ -80,6 +84,20 @@ def main(argv: list[str] | None = None) -> int:
                 folder = analyzer.analyze(page, cfg, args.url)
             print((folder / "analysis.md").read_text(encoding="utf-8"))
             print(f"\nSaved: {folder}")
+            repos = json.loads((folder / "analysis.json").read_text(encoding="utf-8")).get("github_links_found", [])
+            for t in json.loads((folder / "analysis.json").read_text(encoding="utf-8")).get("tools", []):
+                if not t.get("github") and t.get("github_matches"):
+                    repos.append(t["github_matches"][0]["repo"])
+            repos = list(dict.fromkeys(repos))
+            if repos and sys.stdin.isatty():
+                for i, r in enumerate(repos, 1):
+                    print(f"  [{i}] {r}")
+                pick = input("Install any of these? Enter numbers (e.g. 1 3) or Enter to skip: ").split()
+                for n in pick:
+                    if n.isdigit() and 1 <= int(n) <= len(repos):
+                        installer.install(repos[int(n) - 1])
+        elif args.cmd == "install":
+            installer.install(args.repo, yes=args.yes)
         elif args.cmd == "edit":
             img = args.image.resolve()
             out, plan = editor.auto_edit(img, img.parent, "story" if args.story else "post", args.brief)

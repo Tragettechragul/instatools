@@ -12,6 +12,12 @@ You can use it from the **command line**, from **chat with Claude** (Claude Code
 
 ## Setup (once)
 
+**Quickest:** download the repo and run the setup script for your system. It installs everything and opens the Instagram login:
+- Windows: right-click `setup.ps1` → *Run with PowerShell*
+- Mac / Linux: `bash setup.sh`
+
+Or do it by hand:
+
 You need Python 3.10+ and ffmpeg (`winget install ffmpeg` / `brew install ffmpeg` / `apt install ffmpeg`).
 
 ```bash
@@ -49,6 +55,14 @@ It prints a report and saves it to `data/library/<account>/<post-id>/`. The repo
 - steps to reproduce it, and any commands or code shown on screen
 - a beat-by-beat timeline, every piece of on-screen text, and the hook and call to action
 - claims that need checking, and an honest "is this useful?"
+
+When the report finishes, it lists the GitHub repos it found and asks **"Install any of these?"**. Type the numbers and it installs them:
+
+```bash
+instatools install owner/repo        # or just pick from the list after `analyze`
+```
+
+It clones the project into `~/instatools-apps/<repo>`, works out what kind of project it is (Python, Node, Go, Rust or Docker), and runs its install steps in that project's own folder. Nothing is installed system-wide, and it asks before running anything (`-y` skips the question). If the project needs something you don't have, such as Node, it tells you instead of failing.
 
 The folder also keeps the video, the audio (`.m4a`), the timestamped transcript, the caption and the raw `analysis.json`.
 
