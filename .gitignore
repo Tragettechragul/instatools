@@ -1,2 +1,5 @@
-instagram-data/
+__pycache__/
+*.egg-info/
+.venv/
+data/
 .DS_Store

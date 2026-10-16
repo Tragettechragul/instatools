@@ -1,0 +1,64 @@
+"""One persistent Chromium profile. You log in by hand once; the tool never sees your password."""
+from contextlib import contextmanager
+
+from playwright.sync_api import BrowserContext, Page, sync_playwright
+
+from . import config
+from .guards import NotLoggedIn, check, pause
+
+IG = "https://www.instagram.com/"
+
+
+@contextmanager
+def session(cfg: config.Config, headless: bool | None = None):
+    with sync_playwright() as pw:
+        ctx: BrowserContext = pw.chromium.launch_persistent_context(
+            str(cfg.profile_dir),
+            headless=config.HEADLESS if headless is None else headless,
+            viewport={"width": 1280, "height": 900},
+            locale="en-GB",
+        )
+        try:
+            page = ctx.pages[0] if ctx.pages else ctx.new_page()
+            yield page
+        finally:
+            ctx.close()
+
+
+def goto(page: Page, url: str) -> None:
+    page.goto(url, wait_until="domcontentloaded")
+    pause(2, 4)
+    dismiss_popups(page)
+    check(page)
+
+
+def dismiss_popups(page: Page) -> None:
+    for name in ("Not now", "Not Now", "Decline optional cookies", "Allow all cookies"):
+        btn = page.get_by_role("button", name=name, exact=True)
+        if btn.count():
+            try:
+                btn.first.click(timeout=2000)
+                pause(1, 2)
+            except Exception:
+                pass
+
+
+def logged_in_username(page: Page) -> str:
+    goto(page, IG)
+    if page.locator("input[name='password']").count():
+        raise NotLoggedIn("Not logged in — run `instatools login`.")
+    # The profile link in the side nav points to /<username>/
+    for link in page.locator("a[href^='/'][role='link']").all():
+        if (link.get_attribute("aria-label") or "").lower().startswith("profile") or link.locator("img[alt*='profile picture']").count():
+            href = (link.get_attribute("href") or "").strip("/")
+            if href and "/" not in href:
+                return href
+    raise NotLoggedIn("Could not find your profile link — are you logged in?")
+
+
+def interactive_login(cfg: config.Config) -> None:
+    with session(cfg, headless=False) as page:
+        page.goto(IG)
+        print("A browser window is open. Log in to Instagram there yourself (including any 2FA).")
+        input("When you can see your feed, press Enter here… ")
+        print(f"Logged in as @{logged_in_username(page)}. Session saved in {cfg.profile_dir}")

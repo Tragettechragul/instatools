@@ -1,55 +1,89 @@
 # instatools
 
-A Claude skill that runs your Instagram account **through your own Chrome**, where you're already logged in, using the Claude in Chrome extension. No API, no password, no third-party tools.
+Runs your Instagram account from a folder. You drop a video or image into `data/inbox/`, and it gets posted automatically. It can also download posts, captions, stats, videos and audio from your profile or any public profile.
 
-It covers five jobs:
+It drives a real Chromium browser through the normal instagram.com website, logged in as you. You log in by hand once. The tool never sees or stores your password.
 
-1. **Pull my data:** reach, views, profile visits and follower change; stats for each post; audience details. It then tells you which format and posting times win, and which way the trend is going.
-2. **Niche research:** finds 5–10 UK IT support, cyber security, PC build and data recovery accounts. For each it records the bio, how often they post, their format mix, their top 3 posts, full captions, caption structure and audio.
-3. **Reel breakdown:** goes through a Reel beat by beat, explains why it works, and turns it into a script you can film yourself.
-4. **Caption research:** analyses your captions and competitors' captions, then gives you 5 caption templates based on what performs.
-5. **Posting:** drafts the post, shows it to you in full, and publishes only after your **yes**. It then confirms the post is live and gives you the link.
+> **Risk:** automating a browser goes against Instagram's Terms of Use. Instagram can respond with "action blocked", login checkpoints, or in the worst case a ban. The tool posts slowly, at most one post per 10 minutes by default, and **stops completely** the moment Instagram shows a captcha, a challenge or a block. Use it on an account you're prepared to take that risk with.
 
-Everything it collects is saved under `instagram-data/` with dates in the file names, so nothing is lost between sessions. This folder is git-ignored, so it stays private.
+## Setup (once)
 
-## Install
+You need Python 3.10+ and ffmpeg (`winget install ffmpeg` / `brew install ffmpeg` / `apt install ffmpeg`).
 
-You need Claude Code (or the Claude desktop app) **on your own computer**, plus the [Claude in Chrome](https://claude.ai/chrome) extension installed and connected. A cloud session can't reach your browser, so this won't work from claude.ai/code.
-
-```
-/plugin marketplace add Tragettechragul/instatools
-/plugin install instatools@instatools
+```bash
+git clone https://github.com/Tragettechragul/instatools
+cd instatools
+pip install -e ".[ai]"        # add ,transcribe for speech-to-text: ".[ai,transcribe]"
+playwright install chromium
+instatools login              # a browser opens: log in to Instagram yourself, then press Enter
 ```
 
-Then just ask, for example:
+For automatic captions, set an Anthropic API key: `export ANTHROPIC_API_KEY=sk-ant-...` (on Windows: `setx ANTHROPIC_API_KEY ...`). Without a key, captions come only from your note files.
 
-- "Pull my Instagram insights"
-- "Research UK IT support accounts on Instagram"
-- "Break down this reel: https://www.instagram.com/reel/…"
-- "Give me caption templates"
-- "Draft an Instagram post about recovering data from a failed SSD"
+## Posting automatically
 
-## Safety rules built in
+Start the watcher and leave it running:
 
-- Nothing gets posted, liked, followed, commented on or messaged without your yes on that exact item.
-- It never asks for or types a password.
-- It works at human speed, one action at a time.
-- It **stops immediately** if it hits a captcha, a login challenge, a rate limit or "action blocked", and doesn't retry.
-- It records numbers exactly as Instagram shows them. Anything it couldn't collect is marked as missing, never guessed.
+```bash
+instatools watch
+```
 
-You can read all the rules in `plugins/instatools/skills/instagram-manager/references/safety-rules.md`.
+Then drop files into `data/inbox/`:
 
-## Known limits
-
-| Want | Reality |
+| You drop | It posts |
 |---|---|
-| Full insights for 7, 30 and 90 days, plus demographics | The instagram.com dashboard shows less than the phone app. Missing fields are marked `NOT AVAILABLE ON WEB`. |
-| Whether an audio is "rising or peaked" | Instagram mostly shows this only in the app. On the web you get the number of Reels using the audio. |
-| Transcribing a Reel | It can read on-screen text and visible auto-captions. It can't hear audio. |
-| Competitors' saves and shares | Only the account owner can see these. |
-| Uploading files | The file picker is your computer's own dialog. You may need to select the file yourself. |
-| Instagram changing its layout | The skill finds things by what's on the page, not fixed links, but large redesigns may need updates. |
+| `clip.mp4` | A Reel |
+| `photo.jpg` | A single image post |
+| `clip.mp4` + `clip.txt` | The `.txt` is used as the **exact** caption |
+| `clip.mp4` + `clip.txt` starting with `brief: ...` | Claude writes the caption from your brief |
+| `clip.mp4` alone, with an API key set | Claude looks at the media and writes the caption, hashtags and alt text in the style of your recent posts |
+| A folder with 2–10 images or videos (+ `caption.txt`) | A carousel, in file-name order |
 
-## Customise
+After each post:
+- The files move to `data/posted/<time>-<name>/`, along with `result.json` holding the **live post link**, the caption and the alt text.
+- Anything that fails moves to `data/failed/`, with the error.
+- If Instagram shows a captcha, checkpoint, "Try again later" or "Action blocked", the tool writes `data/STOPPED.txt` and exits. **It doesn't retry.** Sort it out in the Instagram app, then delete `STOPPED.txt` to start again.
+- A log of everything is kept in `data/instatools.log`.
 
-Edit `plugins/instatools/skills/instagram-manager/references/profile.md`. It holds your bio facts, the claims you're allowed to make in public, your tone and your content pillars.
+To run it with no window, set `INSTATOOLS_HEADLESS=1`. To change the gap between posts, set `INSTATOOLS_MIN_GAP_MINUTES=10`. To run it from cron or Windows Task Scheduler instead of leaving it running, use `instatools watch --once`.
+
+## Pulling content
+
+```bash
+instatools pull                       # your latest 12 posts
+instatools pull someaccount --limit 20
+instatools get https://www.instagram.com/reel/XXXX/ --transcribe
+```
+
+Each post is saved to `data/library/<account>/<post-id>/`:
+- `01.mp4` / `01.jpg` … — the full-size media (every slide of a carousel)
+- `01.m4a` — the audio track pulled out of each video
+- `01.transcript.txt` — timestamped speech-to-text (with `--transcribe`)
+- `caption.txt` and `post.json` — caption, likes, comments, plays/views, post time, audio name
+
+When captions are generated automatically, your own pulled captions are used as style examples.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `instatools login` | Log in by hand once; the session is saved in `data/browser-profile/` |
+| `instatools whoami` | Check which account the saved session is logged in as |
+| `instatools watch [--once]` | Post everything dropped into the inbox |
+| `instatools post FILE... [--caption "..."]` | Post now, without using the inbox |
+| `instatools pull [USER] [--limit N] [--transcribe]` | Download a profile's posts |
+| `instatools get URL [--transcribe]` | Download one post or Reel |
+
+## Limits
+
+- **Insights** (reach, demographics, best times) aren't included yet. instagram.com shows only part of them, and the layout changes often.
+- **Layout changes:** buttons are found by their visible labels ("New post", "Next", "Share"). If Instagram renames them, posting fails safely to `data/failed/`, and the selector in `instatools/poster.py` needs updating.
+- **Other people's content:** downloading it is for your own research. Don't repost it without permission.
+- **`data/browser-profile/` is your logged-in session.** Treat it like a password. It's git-ignored, so never commit or share it.
+
+## Tests
+
+```bash
+pip install pytest && pytest -q
+```
+The offline tests check post parsing, inbox detection and hard-stop detection. They don't touch Instagram.

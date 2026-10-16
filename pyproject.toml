@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "instatools"
+version = "0.2.0"
+description = "Automate your own Instagram account from a drop folder: post images, videos, Reels and carousels; pull posts, captions, media and audio."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["playwright>=1.40"]
+
+[project.optional-dependencies]
+ai = ["anthropic>=0.40"]
+transcribe = ["faster-whisper>=1.0"]
+
+[project.scripts]
+instatools = "instatools.cli:main"
+
+[tool.setuptools]
+packages = ["instatools"]
